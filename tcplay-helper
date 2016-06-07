@@ -15,7 +15,7 @@ cleanup_on_abort(){
 }
 
 cleanup(){
-  devices=$(awk -v dev="$cryptdev" -F":" '/dev/ {print $1}' <(losetup -a))
+  devices=$(awk -v dev="$cryptdev" -F":" 'dev {print $1}' <(losetup -a))
   # unmount and remove mount point
   umount "$mountpt"
   [ -d "$mountpt" ] && rm -rf "$mountpt"
