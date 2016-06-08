@@ -4,10 +4,40 @@
 user="$3"
 cryptdev="$2"
 cryptname="$(basename ${cryptdev:-truecrypt})"
-mountpt="/mnt/${cryptname}"
 
 # Trap SIGINT
 trap cleanup_on_abort SIGINT
+
+mount_me(){
+  # mount container
+  if hash udisksctl 2>/dev/null; then
+    # udisks2 available
+    udisksctl mount -b /dev/mapper/"${cryptname}"
+  else
+    # use mount
+    mountpt="/mnt/${cryptname}"
+    [[ -d $mountpt ]] || mkdir "$mountpt"
+    # mount options
+    if [[ -z ${user+x} ]]; then
+      mount /dev/mapper/"$cryptname" "$mountpt"
+    else
+      mount -o nodev,nosuid /dev/mapper/"$cryptname" "$mountpt"
+    fi
+  fi
+}
+
+unmount_me(){
+  # unmount and remove mount point
+  if hash udisksctl 2>/dev/null; then
+    # udisks2 available
+    udisksctl unmount -b /dev/mapper/"${cryptname}"
+  else
+    # use mount
+    mountpt="/mnt/${cryptname}"
+    umount "$mountpt"
+    [[ -d "$mountpt" ]] && rm -rf "$mountpt"
+  fi
+}
 
 cleanup_on_abort(){
   printf "%s\n" "Ctrl+C detected, cleaning up."
@@ -16,9 +46,7 @@ cleanup_on_abort(){
 
 cleanup(){
   devices=$(awk -v dev="$cryptname" -F":" 'dev {print $1}' <(losetup -a))
-  # unmount and remove mount point
-  umount "$mountpt"
-  [[ -d "$mountpt" ]] && rm -rf "$mountpt"
+  unmount_me
   dmsetup remove "$cryptname" || printf "%s\n" "demapping failed"
 
   while read -r deviceline; do
@@ -34,7 +62,7 @@ print_usage(){
  close [container]
 
 The SIZE argument is an integer and optional unit (example: 10K is 10*1024).
-Units are K,M,G,T,P,E,Z,Y (powers of 1024) or KB,MB,... (powers of 1000)"
+Units are K,M,G,T,P,E,Z,Y (powers of 1024) or KB,MB,... (powers of 1000)" >&2
 }
 
 # must be run as root
@@ -70,14 +98,7 @@ elif [[ $1 == open ]]; then
     losetup -d "$loopdev"
     exit 1
   fi
-  # mount container
-  [[ -d $mountpt ]] || mkdir "$mountpt"
-  # mount options
-  if [[ -z ${3+x} ]]; then
-    mount /dev/mapper/"$cryptname" "$mountpt"
-  else
-    mount -o nodev,nosuid /dev/mapper/"$cryptname" "$mountpt"
-  fi
+  mount_me
 
 # close container and clean up
 elif [[ $1 == close ]]; then
