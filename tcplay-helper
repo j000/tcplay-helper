@@ -18,7 +18,7 @@ cleanup(){
   devices=$(awk -v dev="$cryptdev" -F":" 'dev {print $1}' <(losetup -a))
   # unmount and remove mount point
   umount "$mountpt"
-  [ -d "$mountpt" ] && rm -rf "$mountpt"
+  [[ -d "$mountpt" ]] && rm -rf "$mountpt"
   dmsetup remove "$cryptdev" || printf "%s\n" "demapping failed"
 
   while read -r deviceline; do
@@ -40,7 +40,7 @@ print_usage(){
 }
 
 # must be run as root
-if (( $EUID != 0 )); then
+if [[ $EUID != 0 ]]; then
   printf "%s\n" "Root permissions required."
   exit 1
 fi
@@ -48,7 +48,7 @@ fi
 # create container and format it as ext4
 if [[ $1 == create ]]; then
   
-  if [ -z ${3+x} ]; then
+  if [[ -z ${3+x} ]]; then
       printf "%s\n" "Error: No size argument supplied."
       print_usage
 
@@ -79,7 +79,7 @@ EOF
   [[ -d $mountpt ]] || mkdir "$mountpt"
 
   # mount options
-  if [ -z ${3+x} ]; then
+  if [[ -z ${3+x} ]]; then
       mount /dev/mapper/"$cryptdev" "$mountpt"
   else
       mount -o nodev,nosuid /dev/mapper/"$cryptdev" "$mountpt"
