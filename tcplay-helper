@@ -22,21 +22,19 @@ cleanup(){
   dmsetup remove "$cryptdev" || printf "%s\n" "demapping failed"
 
   while read -r deviceline; do
-
     losetup -d "$deviceline" || printf "%s\n" "deleting $deviceline failed"
-
   done <<< "$devices"
 }
 
 print_usage(){
   printf "%s\n" "Usage: [Operation] [Container] [OPTIONS]
- 
-    create [container] [SIZE]
-    open [container] [optional - user to mount as]
-    close [container]
- 
-    The SIZE argument is an integer and optional unit (example: 10K is 10*1024).
-    Units are K,M,G,T,P,E,Z,Y (powers of 1024) or KB,MB,... (powers of 1000)"
+
+ create [container] [SIZE]
+ open [container] [optional - user to mount as]
+ close [container]
+
+The SIZE argument is an integer and optional unit (example: 10K is 10*1024).
+Units are K,M,G,T,P,E,Z,Y (powers of 1024) or KB,MB,... (powers of 1000)"
 }
 
 # must be run as root
@@ -47,21 +45,19 @@ fi
 
 # create container and format it as ext4
 if [[ $1 == create ]]; then
-  
   if [[ -z ${3+x} ]]; then
-      printf "%s\n" "Error: No size argument supplied."
-      print_usage
-
+    printf "%s\n" "Error: No size argument supplied."
+    print_usage
   else
-      loopdev=$(losetup -f)
-      fallocate -l "$3" "$cryptdev"
-      losetup "$loopdev" "$cryptdev"
-      tcplay -c -d "$loopdev" -a whirlpool -b AES-256-XTS
-      tcplay -m "$cryptdev" -d "$loopdev"
-      mkfs.ext4 /dev/mapper/"$cryptdev"
-      sleep 2
-      dmsetup remove "$cryptdev"
-      losetup -d "$loopdev"
+    loopdev=$(losetup -f)
+    fallocate -l "$3" "$cryptdev"
+    losetup "$loopdev" "$cryptdev"
+    tcplay -c -d "$loopdev" -a whirlpool -b AES-256-XTS
+    tcplay -m "$cryptdev" -d "$loopdev"
+    mkfs.ext4 /dev/mapper/"$cryptdev"
+    sleep 2
+    dmsetup remove "$cryptdev"
+    losetup -d "$loopdev"
   fi
 
 # decrypt and mount container
@@ -77,18 +73,17 @@ EOF
 
   # mount container
   [[ -d $mountpt ]] || mkdir "$mountpt"
-
   # mount options
   if [[ -z ${3+x} ]]; then
-      mount /dev/mapper/"$cryptdev" "$mountpt"
+    mount /dev/mapper/"$cryptdev" "$mountpt"
   else
-      mount -o nodev,nosuid /dev/mapper/"$cryptdev" "$mountpt"
+    mount -o nodev,nosuid /dev/mapper/"$cryptdev" "$mountpt"
   fi
 
 # close container and clean up
 elif [[ $1 == close ]]; then
   cleanup
-  
+
 else
   print_usage
 
