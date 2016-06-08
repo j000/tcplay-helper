@@ -1,10 +1,10 @@
 #!/bin/bash
 # manage truecrypt containers using tcplay
 
-user=$3
-cryptdev=$2
-mountpt=/mnt/truecrypt
-
+user="$3"
+cryptdev="$2"
+cryptname="$(basename ${cryptdev:-truecrypt})"
+mountpt="/mnt/${cryptname}"
 
 # Trap SIGINT
 trap cleanup_on_abort SIGINT
@@ -15,11 +15,11 @@ cleanup_on_abort(){
 }
 
 cleanup(){
-  devices=$(awk -v dev="$cryptdev" -F":" 'dev {print $1}' <(losetup -a))
+  devices=$(awk -v dev="$cryptname" -F":" 'dev {print $1}' <(losetup -a))
   # unmount and remove mount point
   umount "$mountpt"
   [[ -d "$mountpt" ]] && rm -rf "$mountpt"
-  dmsetup remove "$cryptdev" || printf "%s\n" "demapping failed"
+  dmsetup remove "$cryptname" || printf "%s\n" "demapping failed"
 
   while read -r deviceline; do
     losetup -d "$deviceline" || printf "%s\n" "deleting $deviceline failed"
@@ -27,7 +27,7 @@ cleanup(){
 }
 
 print_usage(){
-  printf "%s\n" "Usage: [Operation] [Container] [OPTIONS]
+  printf "%s\n" "Usage: $0 [Operation] [Container] [OPTIONS]
 
  create [container] [SIZE]
  open [container] [optional - user to mount as]
@@ -53,10 +53,10 @@ if [[ $1 == create ]]; then
     fallocate -l "$3" "$cryptdev"
     losetup "$loopdev" "$cryptdev"
     tcplay -c -d "$loopdev" -a whirlpool -b AES-256-XTS
-    tcplay -m "$cryptdev" -d "$loopdev"
-    mkfs.ext4 /dev/mapper/"$cryptdev"
+    tcplay -m "$cryptname" -d "$loopdev"
+    mkfs.ext4 /dev/mapper/"$cryptname"
     sleep 2
-    dmsetup remove "$cryptdev"
+    dmsetup remove "$cryptname"
     losetup -d "$loopdev"
   fi
 
@@ -64,26 +64,26 @@ if [[ $1 == create ]]; then
 elif [[ $1 == open ]]; then
   loopdev=$(losetup -f)
   losetup "$loopdev" "$cryptdev"
-  tcplay -m "$cryptdev" -d "$loopdev"
-
-  # read passphrase
-  read -r -s passphrase <<EOF
-  "$passphrase"
-EOF
-
+  tcplay -m "$cryptname" -d "$loopdev"
+  if [[ $? != 0 ]]; then
+    # something went wrong, free loopdev and exit
+    losetup -d "$loopdev"
+    exit 1
+  fi
   # mount container
   [[ -d $mountpt ]] || mkdir "$mountpt"
   # mount options
   if [[ -z ${3+x} ]]; then
-    mount /dev/mapper/"$cryptdev" "$mountpt"
+    mount /dev/mapper/"$cryptname" "$mountpt"
   else
-    mount -o nodev,nosuid /dev/mapper/"$cryptdev" "$mountpt"
+    mount -o nodev,nosuid /dev/mapper/"$cryptname" "$mountpt"
   fi
 
 # close container and clean up
 elif [[ $1 == close ]]; then
   cleanup
 
+# unknown option
 else
   print_usage
 
